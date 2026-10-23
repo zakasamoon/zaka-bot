@@ -1,5 +1,5 @@
 {
- "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "ZECUSDT"],
+ "symbols": ["ZECUSDT"],
  "timeframe": "5m", "15m", "30m",
  "balance": 1000.0,
  "risk_percent": 1.0,
