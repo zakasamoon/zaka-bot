@@ -25,15 +25,32 @@
    "net": null,
    "ct": null,
    "amt": 10.0
+  },
+  {
+   "key": "SOLUSDT|1792733400|3",
+   "sym": "SOLUSDT",
+   "dir": 1,
+   "n": 3,
+   "t": 1792733400,
+   "entry": 104.44,
+   "sl": 104.01,
+   "risk": 0.4299999999999926,
+   "res": "open",
+   "hits": 0,
+   "net": null,
+   "ct": null,
+   "amt": 10.0
   }
  ],
  "risk": 1.0,
  "fee": 0.05,
  "start": 1792730312,
  "symbols": [
-  "ZECUSDT"
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT"
  ],
- "timeframe": "5m",
- "lastPoll": 1792737587.0401084,
+ "timeframe": "15m",
+ "lastPoll": 1792740694.4155705,
  "errors": {}
 }
