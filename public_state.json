@@ -40,6 +40,21 @@
    "net": null,
    "ct": null,
    "amt": 10.0
+  },
+  {
+   "key": "ZECUSDT|1792763100|3",
+   "sym": "ZECUSDT",
+   "dir": 1,
+   "n": 3,
+   "t": 1792763100,
+   "entry": 1246.1,
+   "sl": 1226.25,
+   "risk": 19.84999999999991,
+   "res": "open",
+   "hits": 0,
+   "net": null,
+   "ct": null,
+   "amt": 10.0
   }
  ],
  "risk": 1.0,
@@ -49,6 +64,6 @@
   "ZECUSDT"
  ],
  "timeframe": "5m",
- "lastPoll": 1792758882.9497497,
+ "lastPoll": 1792763636.6642988,
  "errors": {}
 }

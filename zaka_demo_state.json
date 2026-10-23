@@ -31,6 +31,20 @@
    "hits": 0,
    "net": null,
    "ct": null
+  },
+  "ZECUSDT|1792763100|3": {
+   "key": "ZECUSDT|1792763100|3",
+   "sym": "ZECUSDT",
+   "dir": 1,
+   "n": 3,
+   "t": 1792763100,
+   "entry": 1246.1,
+   "sl": 1226.25,
+   "risk": 19.84999999999991,
+   "res": "open",
+   "hits": 0,
+   "net": null,
+   "ct": null
   }
  }
 }
