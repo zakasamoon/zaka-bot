@@ -1,0 +1,13 @@
+{
+ "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+ "timeframe": "15m",
+ "balance": 1000.0,
+ "risk_percent": 1.0,
+ "fee_percent": 0.05,
+ "night_start_hour": 1,
+ "night_end_hour": 5,
+ "start_from": "now",
+ "history_days": 4,
+ "poll_seconds": 30,
+ "port": 8766
+}

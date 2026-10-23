@@ -1,0 +1,20 @@
+ZAKA DEMO BOT ONLINE (GitHub Actions, free)
+
+1. Make a free account at github.com and create a NEW PUBLIC repository, for example "zaka-bot"
+   (public = free unlimited run time; the bot uses only public MEXC candles and has no secrets;
+   anyone who knows the address can see the demo results).
+2. Open the repository, click "Add file" > "Upload files", drag in EVERYTHING from this folder
+   (zaka_demo_bot.py, zaka_bot_config.json and the hidden folder .github with the workflow inside),
+   then "Commit changes". If the .github folder does not upload, create the file by hand:
+   Add file > Create new file, name it  .github/workflows/zaka-bot.yml  and paste the workflow text.
+3. Open the "Actions" tab. If GitHub asks, click "I understand my workflows, go ahead and enable them".
+4. Click "Zaka demo bot" > "Run workflow" once to start it. After that it runs by itself about every 5 minutes.
+   After the first run the file public_state.json appears in the repository.
+5. In ZakaDesk > Position tab > "24/7 bot account", paste this address and press Enter:
+   https://raw.githubusercontent.com/YOURNAME/zaka-bot/main/public_state.json
+   (replace YOURNAME and zaka-bot by yours; add the 'main' branch name if yours is different).
+
+Change pairs, risk, balance or timeframe by editing zaka_bot_config.json in the repository.
+To start the demo again from zero: delete zaka_demo_state.json and public_state.json in the repository.
+GitHub switches scheduled runs off after about 60 days without activity in a repository: if that happens,
+open the Actions tab and enable the workflow again.
