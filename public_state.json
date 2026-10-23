@@ -10,7 +10,23 @@
   ]
  ],
  "closed": [],
- "open": [],
+ "open": [
+  {
+   "key": "ETHUSDT|1792730700|5",
+   "sym": "ETHUSDT",
+   "dir": -1,
+   "n": 5,
+   "t": 1792730700,
+   "entry": 2394.36,
+   "sl": 2416.94,
+   "risk": 22.579999999999927,
+   "res": "open",
+   "hits": 0,
+   "net": null,
+   "ct": null,
+   "amt": 10.0
+  }
+ ],
  "risk": 1.0,
  "fee": 0.05,
  "start": 1792730312,
@@ -20,6 +36,6 @@
   "SOLUSDT"
  ],
  "timeframe": "15m",
- "lastPoll": 1792730318.2704165,
+ "lastPoll": 1792732052.888024,
  "errors": {}
 }
