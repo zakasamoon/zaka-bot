@@ -1,0 +1,35 @@
+name: Zaka demo bot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zaka-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the pairs once and update the demo account
+        run: python zaka_demo_bot.py --once
+      - name: Save the account
+        run: |
+          git config user.name "zaka-bot"
+          git config user.email "zaka-bot@users.noreply.github.com"
+          git add zaka_demo_state.json public_state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "demo account update"
+            git pull --rebase
+            git push
+          fi
