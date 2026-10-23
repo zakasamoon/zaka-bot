@@ -46,11 +46,9 @@
  "fee": 0.05,
  "start": 1792730312,
  "symbols": [
-  "BTCUSDT",
-  "ETHUSDT",
-  "SOLUSDT"
+  "ZECUSDT"
  ],
- "timeframe": "15m",
- "lastPoll": 1792740694.4155705,
+ "timeframe": "5m",
+ "lastPoll": 1792742614.1980143,
  "errors": {}
 }
