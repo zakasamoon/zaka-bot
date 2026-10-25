@@ -46,6 +46,7 @@ DEFAULT = {
 TF = {'1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400}
 IV = {'1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '60m', '4h': '4h'}
 LAD = [4, 6, 8, 12, 16, 20, 28, 40, 55]
+LADW = [0.4] + [0.075] * 8                          # share of the position closed at each target: 40% at the first, the rest equally
 API = 'https://api.mexc.com'
 
 # ---------------------------------------------------------------- the Night algo (night range mode), a port of the ZakaDesk engine
@@ -63,9 +64,9 @@ def net_r(g):
     if g['res'] == 'open': return None
     if not g.get('ladder'): return g['rr'] if g['res'] == 'win' else -1.0
     n = len(g['tps']); hit = n if g['res'] == 'win' else g['hits']
-    v = sum(g['mult'][k] / n for k in range(hit))
+    v = sum(g['mult'][k] * LADW[k] for k in range(hit)); rem = sum(LADW[hit:])
     er = g['mult'][0] if hit >= 3 else (0.0 if hit >= 1 else -1.0)
-    return v + (n - hit) / n * er
+    return v + rem * er
 
 def line_share(k, line, d):
     """share (0..1) of a candle's full range (high to low) that lies beyond a line"""
@@ -134,7 +135,7 @@ def build(c, days, h0, h1, lpct=50.0):
                 if ((c[k]['close'] < st['lvl']) if d > 0 else (c[k]['close'] > st['lvl'])) and line_share(c[k], st['lvl'], r) >= lpct / 100.0 - 1e-9: j = k; break      # the candle that closes back must also have enough of its range beyond the line
                 ex = max(ex, c[k]['high']) if d > 0 else min(ex, c[k]['low'])
             if j < 0: continue
-            slv = max(ex, c[j]['high']) if d > 0 else min(ex, c[j]['low'])
+            slv = c[a]['high'] if d > 0 else c[a]['low']      # stop: beyond the crossing candle's high (sell) / low (buy)
             key = 'r|%d|%d' % (st['n'], a)
             if key in used: return None
             if t == j: return {'a': a, 'slv': slv, 'status': 'wait', 'cons': False}
