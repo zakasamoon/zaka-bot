@@ -48,7 +48,7 @@ IV = {'1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '60m', '4h': '4h
 LAD = [4, 6, 8, 12, 16, 20, 28, 40, 55]
 LADW = [0.4] + [0.075] * 8                          # share of the position closed at each target: 40% at the first, the rest equally
 API = 'https://api.mexc.com'
-RULES = '2026-10-25.3'      # change this text whenever a trading rule changes: the bot then erases the old demo account and starts a fresh one under the new rules
+RULES = '2026-10-25.4'      # change this text whenever a trading rule changes: the bot then erases the old demo account and starts a fresh one under the new rules
 
 # ---------------------------------------------------------------- the Night algo (night range mode), a port of the ZakaDesk engine
 def pkt_day(t):
@@ -196,6 +196,8 @@ def build(c, days, h0, h1, lpct=50.0):
             if not r or r['status'] != 'enter': continue
             dist = abs(q['close'] - r['slv'])
             if not dist > 0: continue
+            other = s['prof']['val'] if st['dir'] > 0 else s['prof']['vah']
+            if abs(other - q['close']) / dist < 4 - 1e-9: continue      # S5/S6 only when the other night line is at least 1:4 away
             return {'i': r['a'], 'rev': True, 'key': r['key'], 'st': {'n': 5 if st['dir'] > 0 else 6, 'dir': -st['dir'], 'lvl': st['lvl']}, 'slv': r['slv'], 'dist': dist}
         return None
 
