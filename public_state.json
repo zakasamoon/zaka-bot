@@ -247,7 +247,11 @@
  "symbols": [
   "ZECUSDT"
  ],
+ "strategies": [
+  "night",
+  "volspike"
+ ],
  "timeframe": "5m",
- "lastPoll": 1792934827.8203807,
+ "lastPoll": 1792938955.34365,
  "errors": {}
 }
