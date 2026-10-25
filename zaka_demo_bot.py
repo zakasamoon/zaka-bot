@@ -31,6 +31,7 @@ DEFAULT = {
     "history_days": 6,                               # days of candles used for every calculation
     "poll_seconds": 30,
     "port": 8766,
+    "line_close_percent": 50,                        # every line-crossing signal needs at least this % of the candle's range beyond the line (0 = off)
     "strategies": ["night", "volspike"],             # which strategies trade the demo account: "night" and/or "volspike"
     "vs": {                                          # the Volume spike strategy (always on 1-minute candles)
         "symbols": [],                               # pairs for it; empty = the same pairs as above
@@ -66,7 +67,13 @@ def net_r(g):
     er = g['mult'][0] if hit >= 3 else (0.0 if hit >= 1 else -1.0)
     return v + (n - hit) / n * er
 
-def build(c, days, h0, h1):
+def line_share(k, line, d):
+    """share (0..1) of a candle's full range (high to low) that lies beyond a line"""
+    r = k['high'] - k['low']
+    if not r > 0: return 1.0
+    return max(0.0, (k['high'] - max(k['low'], line)) if d > 0 else (min(k['high'], line) - k['low'])) / r
+
+def build(c, days, h0, h1, lpct=50.0):
     """c: closed candles [{time,open,high,low,close}], days: {PKT midnight: {'vah':high,'val':low}} -> list of sessions with their trades"""
     out = []; cur = None; sess_at = [None] * len(c)
     for i, k in enumerate(c):
@@ -87,7 +94,8 @@ def build(c, days, h0, h1):
     def cross_kind(st, i):
         if i < 1 or i >= N: return 0
         k = c[i]; pv = c[i - 1]['close']
-        if (pv <= st['lvl'] and k['close'] > st['lvl']) if st['dir'] > 0 else (pv >= st['lvl'] and k['close'] < st['lvl']): return 1
+        if (pv <= st['lvl'] and k['close'] > st['lvl']) if st['dir'] > 0 else (pv >= st['lvl'] and k['close'] < st['lvl']):
+            return 1 if line_share(k, st['lvl'], st['dir']) >= lpct / 100.0 - 1e-9 else 0      # a close across the line only counts with enough of the candle beyond it
         pierce = (pv <= st['lvl'] and k['high'] > st['lvl'] and k['close'] <= st['lvl']) if st['dir'] > 0 else (pv >= st['lvl'] and k['low'] < st['lvl'] and k['close'] >= st['lvl'])
         if not pierce or i + 1 >= N: return 0
         b = c[i + 1]
@@ -123,7 +131,7 @@ def build(c, days, h0, h1):
             if cross_kind(st, a) != 1: continue
             j = -1; ex = c[a]['high'] if d > 0 else c[a]['low']
             for k in range(a + 1, t + 1):
-                if (c[k]['close'] < st['lvl']) if d > 0 else (c[k]['close'] > st['lvl']): j = k; break
+                if ((c[k]['close'] < st['lvl']) if d > 0 else (c[k]['close'] > st['lvl'])) and line_share(c[k], st['lvl'], r) >= lpct / 100.0 - 1e-9: j = k; break      # the candle that closes back must also have enough of its range beyond the line
                 ex = max(ex, c[k]['high']) if d > 0 else min(ex, c[k]['low'])
             if j < 0: continue
             slv = max(ex, c[j]['high']) if d > 0 else min(ex, c[j]['low'])
@@ -288,7 +296,7 @@ def vs_spikes(cs, lb_s, mult, first_t=0):
         dq.append(i)
     return out
 
-def vs_build(cs, spikes, buf_pct=10.0, thr=4.0):
+def vs_build(cs, spikes, buf_pct=10.0, thr=4.0, lpct=50.0):
     """The lines of a spike candle (high = buy line, low = sell line) stay until the next spike. A candle that CLOSES beyond a line opens a trade
     at its close (stop a little beyond the opposite line). Every close opens a new trade (one at a time per line); once more than `thr` R of losses are
     unrecovered, the next trade has ONE target = that many R and closes when the losses are won back; otherwise the 9-target ladder is used.
@@ -320,6 +328,7 @@ def vs_build(cs, spikes, buf_pct=10.0, thr=4.0):
         for d in (1, -1):
             line = act['H'] if d > 0 else act['L']
             if not ((z['close'] > line) if d > 0 else (z['close'] < line)): continue
+            if line_share(z, line, d) < lpct / 100.0 - 1e-9: continue
             if any(tr['dir'] == d and tr['sig'] == act['id'] for tr in opn): continue
             pb = (prev['close'] > line) if d > 0 else (prev['close'] < line)
             lt = last.get(d)
@@ -430,7 +439,7 @@ class Bot:
             if now < D + h1 * 3600 + 60: continue
             p = self.profile(sym, D, h0, h1)
             if p: days[D] = p
-        sessions = build(cs, days, h0, h1); changed = 0
+        sessions = build(cs, days, h0, h1, cf.get('line_close_percent', 50)); changed = 0
         with self.lock:
             for s in sessions:
                 for g in s['sigs']:
@@ -464,7 +473,7 @@ class Bot:
         self.vs_cache[sym] = cache
         cs = [k for k in cache if k['time'] + step <= now]
         if len(cs) < 100: return 0
-        trades = vs_build(cs, vs_spikes(cs, lb, v['multiple'], now - scan), v['stop_buffer_percent'], v['recover_after']); changed = 0
+        trades = vs_build(cs, vs_spikes(cs, lb, v['multiple'], now - scan), v['stop_buffer_percent'], v['recover_after'], self.c.get('line_close_percent', 50)); changed = 0
         with self.lock:
             for g in trades:
                 if g['time'] < self.D['start']: continue
