@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-ZakaDesk demo bot - the Night algo + the demo account, running 24/7 on your own computer.
+ZakaDesk demo bot - the Night algo and the Volume spike strategy + the demo account, running 24/7 on your own computer.
 
  * Uses only the Python standard library (no pip packages).
  * Reads public MEXC candles (no API key, nothing is ever sent to MEXC, no real order is placed).
- * Takes every Night-range signal by itself with fake money (see zaka_bot_config.json),
+ * Takes every Night-range signal and every Volume-spike trade by itself with fake money (see zaka_bot_config.json; "strategies" chooses which),
    keeps the account in zaka_demo_state.json and shows it at http://127.0.0.1:8766 .
  * ZakaDesk (Position tab > Demo account) also shows this account when the bot is running.
 
@@ -30,7 +30,17 @@ DEFAULT = {
     "start_from": "now",                             # "now" = only new signals, "history" = also the signals of the last days
     "history_days": 6,                               # days of candles used for every calculation
     "poll_seconds": 30,
-    "port": 8766
+    "port": 8766,
+    "strategies": ["night", "volspike"],             # which strategies trade the demo account: "night" and/or "volspike"
+    "vs": {                                          # the Volume spike strategy (always on 1-minute candles)
+        "symbols": [],                               # pairs for it; empty = the same pairs as above
+        "timeframe": "1m",
+        "multiple": 10,                              # spike = green candle with volume above this many times the biggest 1-minute volume of the look-back days
+        "lookback_days": 3,
+        "scan_days": 10,                             # how many days back a spike can be found (its lines live until the next spike or until it is older than this)
+        "stop_buffer_percent": 10,                   # stop = this % of the spike candle's height beyond the opposite line (below its low for a buy, above its high for a sell)
+        "recover_after": 4                           # after more than this many unrecovered losses (in R) the next trade closes when it has won them all back
+    }
 }
 TF = {'1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400}
 IV = {'1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '60m', '4h': '4h'}
@@ -153,6 +163,32 @@ def build(c, days, h0, h1):
             if ok and ('g|%d|%d' % (st['n'], a)) not in used: return {'a': a, 'slv': st['lvl'], 'status': 'wait'}
         return None
 
+    def rej_at(s, t):
+        """touch rejection (S7/S8): the wick touches a night line without closing beyond it, the next candle has the opposite colour and does not touch the line;
+        only taken when the other line (the target) is at least 1:4 away"""
+        q = c[t]
+        if s['prof'] and t >= 2 and t - 1 >= s['i0']:
+            hi = s['prof']['vah']; lo = s['prof']['val']; A = c[t - 1]; pv = c[t - 2]
+            for d in (-1, 1):
+                line = hi if d < 0 else lo
+                if d < 0: ok = A['high'] >= hi and A['close'] <= hi and pv['close'] <= hi and q['close'] < q['open'] and q['high'] < hi and q['close'] > lo
+                else: ok = A['low'] <= lo and A['close'] >= lo and pv['close'] >= lo and q['close'] > q['open'] and q['low'] > lo and q['close'] < hi
+                if not ok: continue
+                slv = A['high'] if d < 0 else A['low']; dist = abs(q['close'] - slv); tp = lo if d < 0 else hi
+                if not dist > 0 or abs(tp - q['close']) / dist < 4 - 1e-9: continue
+                return {'i': t - 1, 'rej': True, 'st': {'n': 7 if d < 0 else 8, 'dir': d, 'lvl': line}, 'slv': slv, 'dist': dist, 'tp': tp, 'rr': abs(tp - q['close']) / dist}
+        return None
+
+    def rev_at(s, t):
+        q = c[t]
+        for st in s['setups']:
+            r = rev(st, s, t)
+            if not r or r['status'] != 'enter': continue
+            dist = abs(q['close'] - r['slv'])
+            if not dist > 0: continue
+            return {'i': r['a'], 'rev': True, 'key': r['key'], 'st': {'n': 5 if st['dir'] > 0 else 6, 'dir': -st['dir'], 'lvl': st['lvl']}, 'slv': r['slv'], 'dist': dist}
+        return None
+
     def entry_at(s, t):
         q = c[t]
         for kind in (2, 1):
@@ -166,45 +202,45 @@ def build(c, days, h0, h1):
                 slv = min(st['lvl'], k['low']) if st['dir'] > 0 else max(st['lvl'], k['high'])
                 dist = abs(q['close'] - slv)
                 if not dist > 0: continue
-                return {'i': i, 'st': st, 'slv': slv, 'dist': dist}
-        if s['prof'] and t >= 2 and t - 1 >= s['i0']:
-            hi = s['prof']['vah']; lo = s['prof']['val']; A = c[t - 1]; pv = c[t - 2]
-            for d in (-1, 1):
-                line = hi if d < 0 else lo
-                if d < 0: ok = A['high'] >= hi and A['close'] <= hi and pv['close'] <= hi and q['close'] < q['open'] and q['high'] < hi and q['close'] > lo
-                else: ok = A['low'] <= lo and A['close'] >= lo and pv['close'] >= lo and q['close'] > q['open'] and q['low'] > lo and q['close'] < hi
-                if not ok: continue
-                slv = A['high'] if d < 0 else A['low']; dist = abs(q['close'] - slv); tp = lo if d < 0 else hi
-                if not dist > 0: continue
-                return {'i': t - 1, 'rej': True, 'st': {'n': 7 if d < 0 else 8, 'dir': d, 'lvl': line}, 'slv': slv, 'dist': dist, 'tp': tp, 'rr': abs(tp - q['close']) / dist}
+                return {'i': i, 'st': st, 'slv': slv, 'dist': dist, 'wick': kind == 2}
+        rj = rej_at(s, t)
+        if rj: return rj
         for st in s['setups']:
             r = cons(st, s, t)
             if not r or r['status'] != 'enter': continue
             dist = abs(q['close'] - r['slv'])
             if not dist > 0: continue
-            return {'i': r['a'], 'key': r['key'], 'st': st, 'slv': r['slv'], 'dist': dist}
+            return {'i': r['a'], 'key': r['key'], 'st': st, 'slv': r['slv'], 'dist': dist, 'cons': True}
         for st in s['setups']:
             r = rng(st, s, t)
             if not r or r['status'] != 'enter': continue
             dist = abs(q['close'] - r['slv'])
             if not dist > 0: continue
-            return {'i': r['a'], 'key': r['key'], 'st': st, 'slv': r['slv'], 'dist': dist}
-        for st in s['setups']:
-            r = rev(st, s, t)
-            if not r or r['status'] != 'enter': continue
-            dist = abs(q['close'] - r['slv'])
-            if not dist > 0: continue
-            return {'i': r['a'], 'key': r['key'], 'st': {'n': 5 if st['dir'] > 0 else 6, 'dir': -st['dir'], 'lvl': st['lvl']}, 'slv': r['slv'], 'dist': dist}
+            return {'i': r['a'], 'key': r['key'], 'st': st, 'slv': r['slv'], 'dist': dist, 'cons': True, 'rng': True}
+        rv = rev_at(s, t)
+        if rv: return rv
         return None
 
-    L = None; last_s = None; carries = []
+    def mk_trade(e, z, s, t):
+        entry = z['close']; rej = bool(e.get('rej')); rr = e['rr'] if rej else LAD[2]
+        T = {'i': t, 'time': z['time'], 'n': e['st']['n'], 'dir': e['st']['dir'], 'entry': entry, 'sl': e['slv'], 'risk': e['dist'],
+             'tp': e['tp'] if rej else entry + e['st']['dir'] * rr * e['dist'], 'rr': rr, 'res': 'open', 'end': None, 'D': s['D'], 'rej': rej, 'rev': bool(e.get('rev'))}
+        if e['st']['n'] in (3, 4): T['var'] = 'R' if e.get('rng') else 'C' if e.get('cons') else 'W' if e.get('wick') else ''      # S3/S4: '' = the clean entry
+        s['sigs'].append(T)
+        if e.get('key'): used.add(e['key'])
+        if not rej:
+            T['ladder'] = True; T['mult'] = LAD; T['tps'] = [entry + e['st']['dir'] * m * e['dist'] for m in LAD]
+            T['hits'] = 0; T['cur'] = T['sl']; T['tp'] = T['tps'][2]
+        return T
+
+    L = None; last_s = None; carries = []; twins = []
     for t in range(N):
         z = c[t]; s = sess_at[t]
         if s is not None and s is not last_s:
             if L is not None: carries.append(L); L = None
             last_s = s
         ended = []
-        for tr in ([L] if L is not None else []) + carries:
+        for tr in ([L] if L is not None else []) + carries + twins:
             if tr['res'] != 'open' or t <= tr['i']: continue
             stp = tr.get('cur', tr['sl'])
             hs = (z['low'] <= stp) if tr['dir'] > 0 else (z['high'] >= stp)
@@ -221,18 +257,83 @@ def build(c, days, h0, h1):
             if hs or ht: tr['res'] = 'loss' if hs else 'win'; tr['end'] = t; ended.append(tr)
         for tr in ended:
             if tr is L: L = None
-        carries = [x for x in carries if x['res'] == 'open']
+        carries = [x for x in carries if x['res'] == 'open']; twins = [x for x in twins if x['res'] == 'open']
         if L is None and s is not None and s['prof']:
             e = entry_at(s, t)
-            if e:
-                entry = z['close']; rej = bool(e.get('rej')); rr = e['rr'] if rej else LAD[2]
-                L = {'i': t, 'time': z['time'], 'n': e['st']['n'], 'dir': e['st']['dir'], 'entry': entry, 'sl': e['slv'], 'risk': e['dist'],
-                     'tp': e['tp'] if rej else entry + e['st']['dir'] * rr * e['dist'], 'rr': rr, 'res': 'open', 'end': None, 'D': s['D']}
-                s['sigs'].append(L)
-                if e.get('key'): used.add(e['key'])
-                if not rej:
-                    L['ladder'] = True; L['mult'] = LAD; L['tps'] = [entry + e['st']['dir'] * m * e['dist'] for m in LAD]
-                    L['hits'] = 0; L['cur'] = L['sl']; L['tp'] = L['tps'][2]
+            if e: L = mk_trade(e, z, s, t)
+        # twin signals: S7/S8 and S5/S6 look alike and often fire together; when one is running the other one is taken as well (same direction)
+        if s is not None and s['prof']:
+            run = [x for x in ([L] if L is not None else []) + carries + twins if x['res'] == 'open' and (x.get('rej') or x.get('rev')) and x['D'] == s['D']]
+            for base in list(run):
+                want = 'rev' if base.get('rej') else 'rej'
+                if any(x['dir'] == base['dir'] and x.get(want) for x in run): continue
+                e2 = rev_at(s, t) if want == 'rev' else rej_at(s, t)
+                if e2 and e2['st']['dir'] == base['dir']:
+                    T = mk_trade(e2, z, s, t); twins.append(T); run.append(T)
+    return out
+
+
+# ---------------------------------------------------------------- the Volume spike strategy (1-minute candles), a port of the ZakaDesk engine
+def vs_spikes(cs, lb_s, mult, first_t=0):
+    """indexes of SPIKE candles: green, and volume > mult x the biggest single volume of the previous lb_s seconds"""
+    from collections import deque
+    dq = deque(); out = []; left = 0
+    for i, k in enumerate(cs):
+        while left < i and cs[left]['time'] < k['time'] - lb_s: left += 1
+        while dq and dq[0] < left: dq.popleft()
+        if dq and k['time'] >= first_t and (k['time'] - cs[left]['time']) >= lb_s * 0.9:
+            mx = cs[dq[0]]['volume']
+            if mx > 0 and k['close'] > k['open'] and k['volume'] > mult * mx: out.append(i)
+        while dq and cs[dq[-1]]['volume'] <= k['volume']: dq.pop()
+        dq.append(i)
+    return out
+
+def vs_build(cs, spikes, buf_pct=10.0, thr=4.0):
+    """The lines of a spike candle (high = buy line, low = sell line) stay until the next spike. A candle that CLOSES beyond a line opens a trade
+    at its close (stop a little beyond the opposite line). Every close opens a new trade (one at a time per line); once more than `thr` R of losses are
+    unrecovered, the next trade has ONE target = that many R and closes when the losses are won back; otherwise the 9-target ladder is used.
+    A new spike starts everything again (trades still running keep running)."""
+    sp = set(spikes); out = []; opn = []; deficit = 0.0; act = None; last = {}
+    for j, z in enumerate(cs):
+        ended = []
+        for tr in opn:
+            if tr['i'] >= j: continue
+            stp = tr.get('cur', tr['sl'])
+            hs = (z['low'] <= stp) if tr['dir'] > 0 else (z['high'] >= stp)
+            if tr.get('ladder'):
+                if hs:
+                    tr['res'] = 'partial' if tr['hits'] > 0 else 'loss'; tr['end'] = j; ended.append(tr); continue
+                while tr['hits'] < len(tr['tps']) and ((z['high'] >= tr['tps'][tr['hits']]) if tr['dir'] > 0 else (z['low'] <= tr['tps'][tr['hits']])): tr['hits'] += 1
+                if tr['hits'] >= len(tr['tps']):
+                    tr['res'] = 'win'; tr['end'] = j; ended.append(tr); continue
+                if tr['hits'] >= 3: tr['cur'] = tr['tps'][0]
+                elif tr['hits'] >= 1: tr['cur'] = tr['entry']
+                continue
+            ht = (z['high'] >= tr['tp']) if tr['dir'] > 0 else (z['low'] <= tr['tp'])
+            if hs or ht: tr['res'] = 'loss' if hs else 'win'; tr['end'] = j; ended.append(tr)
+        for tr in ended:
+            opn.remove(tr); deficit = max(0.0, deficit - net_r(tr))
+        if j in sp:
+            act = {'id': j, 'H': z['high'], 'L': z['low']}; deficit = 0.0; last = {}; continue
+        if act is None: continue
+        prev = cs[j - 1]; rng = act['H'] - act['L']
+        for d in (1, -1):
+            line = act['H'] if d > 0 else act['L']
+            if not ((z['close'] > line) if d > 0 else (z['close'] < line)): continue
+            if any(tr['dir'] == d and tr['sig'] == act['id'] for tr in opn): continue
+            pb = (prev['close'] > line) if d > 0 else (prev['close'] < line)
+            lt = last.get(d)
+            if pb and not (lt is not None and lt['res'] == 'loss'): continue
+            entry = z['close']; buf = max(buf_pct / 100.0 * rng, entry * 0.0002)
+            sl = act['L'] - buf if d > 0 else act['H'] + buf; risk = abs(entry - sl)      # stop just beyond the OPPOSITE line (below the spike low for a buy, above the spike high for a sell)
+            if not risk > 0: continue
+            T = {'i': j, 'time': z['time'], 'n': 11 if d > 0 else 12, 'dir': d, 'entry': entry, 'sl': sl, 'risk': risk, 'res': 'open', 'end': None,
+                 'sig': act['id'], 'line': line, 'D': cs[act['id']]['time']}
+            if deficit > thr:
+                T.update(rec=True, rr=deficit, tp=entry + d * deficit * risk, need=deficit)
+            else:
+                T.update(ladder=True, mult=LAD, tps=[entry + d * m * risk for m in LAD], hits=0, cur=sl, rr=LAD[2]); T['tp'] = T['tps'][2]
+            opn.append(T); out.append(T); last[d] = T
     return out
 
 # ---------------------------------------------------------------- MEXC public candles
@@ -255,7 +356,7 @@ def fetch_range(sym, interval, start_ms, end_ms, step_s):
             for k in j:
                 if start_ms <= k[0] <= end_ms: seen[k[0]] = k
         a += W
-    return [{'time': t // 1000, 'open': float(seen[t][1]), 'high': float(seen[t][2]), 'low': float(seen[t][3]), 'close': float(seen[t][4])} for t in sorted(seen)]
+    return [{'time': t // 1000, 'open': float(seen[t][1]), 'high': float(seen[t][2]), 'low': float(seen[t][3]), 'close': float(seen[t][4]), 'volume': float(seen[t][5])} for t in sorted(seen)]
 
 def night_profile(sym, D, h0, h1):
     """high and low of the night window; 5m candles first, then 15m, then 1h if the exchange has no older small candles"""
@@ -298,7 +399,7 @@ def calc(D):
 
 class Bot:
     def __init__(self, conf):
-        self.c = conf; self.lock = threading.Lock(); self.profiles = {}; self.status = 'starting'; self.last_poll = 0
+        self.c = conf; self.lock = threading.Lock(); self.profiles = {}; self.status = 'starting'; self.last_poll = 0; self.vs_cache = {}
         self.D = load_json(STATE, None)
         if not self.D:
             self.D = {'bal0': conf['balance'], 'risk': conf['risk_percent'], 'fee': conf['fee_percent'],
@@ -338,10 +439,43 @@ class Bot:
                     ct = cs[g['end']]['time'] if g['end'] is not None else None
                     r = self.D['led'].get(key)
                     new = {'key': key, 'sym': sym, 'dir': g['dir'], 'n': g['n'], 't': g['time'], 'entry': g['entry'], 'sl': g['sl'], 'risk': g['risk'],
-                           'res': g['res'], 'hits': g.get('hits', 0), 'net': net, 'ct': ct}
+                           'res': g['res'], 'hits': g.get('hits', 0), 'net': net, 'ct': ct, 'var': g.get('var', '')}
                     if r is None or any(r.get(k) != new[k] for k in ('res', 'hits', 'net', 'ct')):
                         if r is not None: new['amt'] = r.get('amt')
                         self.D['led'][key] = new; changed += 1
+            if changed: save_json(STATE, self.D)
+        return changed
+
+
+    def vs_symbols(self):
+        return [x for x in (self.c['vs'].get('symbols') or self.c['symbols'])]
+
+    def poll_vs(self, sym):
+        v = self.c['vs']; tf = v['timeframe']; step = TF[tf]; now = time.time()
+        lb = v['lookback_days'] * 86400; scan = v['scan_days'] * 86400; start = now - lb - scan
+        cache = self.vs_cache.get(sym) or []
+        if cache and cache[0]['time'] <= start + 3 * step and cache[-1]['time'] > now - 3600:
+            new = fetch_range(sym, IV[tf], int((cache[-1]['time'] - 3 * step) * 1000), int(now * 1000), step)
+            m = {k['time']: k for k in cache}
+            for k in new: m[k['time']] = k
+            cache = [m[t] for t in sorted(m) if t >= start]
+        else:
+            cache = fetch_range(sym, IV[tf], int(start * 1000), int(now * 1000), step)
+        self.vs_cache[sym] = cache
+        cs = [k for k in cache if k['time'] + step <= now]
+        if len(cs) < 100: return 0
+        trades = vs_build(cs, vs_spikes(cs, lb, v['multiple'], now - scan), v['stop_buffer_percent'], v['recover_after']); changed = 0
+        with self.lock:
+            for g in trades:
+                if g['time'] < self.D['start']: continue
+                key = '%s|%d|%d' % (sym, g['time'], g['n']); net = net_r(g)
+                ct = cs[g['end']]['time'] if g['end'] is not None else None
+                r = self.D['led'].get(key)
+                new = {'key': key, 'sym': sym, 'dir': g['dir'], 'n': g['n'], 't': g['time'], 'entry': g['entry'], 'sl': g['sl'], 'risk': g['risk'],
+                       'res': g['res'], 'hits': g.get('hits', 0), 'net': net, 'ct': ct, 'rec': bool(g.get('rec')), 'sig': g['D']}
+                if r is None or any(r.get(k) != new[k] for k in ('res', 'hits', 'net', 'ct')):
+                    if r is not None: new['amt'] = r.get('amt')
+                    self.D['led'][key] = new; changed += 1
             if changed: save_json(STATE, self.D)
         return changed
 
@@ -354,12 +488,20 @@ class Bot:
     def poll_all(self):
         msgs = []; self.errors = {}
         for sym in self.c['symbols']:
-            try:
-                n = self.poll_symbol(sym)
-                if n: msgs.append('%s: %d change(s)' % (sym, n))
-            except Exception as e:
-                msgs.append('%s: %s' % (sym, e)); self.errors[sym] = str(e)[:120]
-            time.sleep(0.5)
+            if 'night' in self.c['strategies']:
+                try:
+                    n = self.poll_symbol(sym)
+                    if n: msgs.append('%s: %d change(s)' % (sym, n))
+                except Exception as e:
+                    msgs.append('%s: %s' % (sym, e)); self.errors[sym] = str(e)[:120]
+                time.sleep(0.5)
+            if 'volspike' in self.c['strategies'] and sym in self.vs_symbols():
+                try:
+                    n = self.poll_vs(sym)
+                    if n: msgs.append('%s volume spike: %d change(s)' % (sym, n))
+                except Exception as e:
+                    msgs.append('%s volume spike: %s' % (sym, e)); self.errors[sym + ' vol'] = str(e)[:120]
+                time.sleep(0.5)
         self.last_poll = time.time(); self.status = 'ok'
         return msgs
 
@@ -374,7 +516,7 @@ class Bot:
     def snapshot(self):
         with self.lock:
             S = calc(json.loads(json.dumps(self.D)))
-        S['symbols'] = self.c['symbols']; S['timeframe'] = self.c['timeframe']; S['lastPoll'] = self.last_poll or time.time()
+        S['symbols'] = self.c['symbols']; S['strategies'] = self.c['strategies']; S['timeframe'] = self.c['timeframe']; S['lastPoll'] = self.last_poll or time.time()
         return S
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Zaka demo bot</title>
@@ -386,8 +528,8 @@ const f=v=>(v>=0?'+':'-')+Math.abs(v).toFixed(2), c=v=>v>0?'up':v<0?'dn':'';
 function pk(t){const d=new Date((t+18000)*1000),p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())}
 async function go(){try{const S=await (await fetch('/state')).json(),pl=S.balance-S.bal0;
 let h='<div class=big><span class='+c(pl)+'>'+S.balance.toFixed(2)+' USDT</span></div><div>'+f(pl)+' USDT from '+S.bal0+' | '+S.closed.length+' closed, '+S.wins+' won | max drawdown '+S.maxDD.toFixed(1)+'% | open '+S.open.length+'</div><div>Pairs: '+S.symbols.join(', ')+' ('+S.timeframe+'). Last check '+new Date(S.lastPoll*1000).toLocaleTimeString()+'</div>';
-if(S.open.length)h+='<h3>Open</h3><table><tr><th>Entry (PKT)</th><th>Pair</th><th>Side</th><th>Targets hit</th></tr>'+S.open.map(r=>'<tr><td>'+pk(r.t)+'</td><td>'+r.sym+'</td><td class='+(r.dir>0?'up':'dn')+'>'+(r.dir>0?'BUY':'SELL')+' S'+r.n+'</td><td>'+r.hits+'</td></tr>').join('')+'</table>';
-h+='<h3>Closed (latest 30)</h3><table><tr><th>Entry (PKT)</th><th>Pair</th><th>Side</th><th>R</th><th>P&amp;L</th></tr>'+S.closed.slice(-30).reverse().map(r=>'<tr><td>'+pk(r.t)+'</td><td>'+r.sym+'</td><td class='+(r.dir>0?'up':'dn')+'>'+(r.dir>0?'BUY':'SELL')+' S'+r.n+'</td><td class='+c(r.net-r.feeR)+'>'+(r.net-r.feeR).toFixed(2)+'</td><td class='+c(r.pnl)+'>'+f(r.pnl)+'</td></tr>').join('')+'</table>';
+if(S.open.length)h+='<h3>Open</h3><table><tr><th>Entry (PKT)</th><th>Pair</th><th>Side</th><th>Targets hit</th></tr>'+S.open.map(r=>'<tr><td>'+pk(r.t)+'</td><td>'+r.sym+'</td><td class='+(r.dir>0?'up':'dn')+'>'+(r.dir>0?'BUY':'SELL')+' '+(r.n>=11?'VOL':'S'+r.n+(r.var?'-'+r.var:''))+'</td><td>'+r.hits+'</td></tr>').join('')+'</table>';
+h+='<h3>Closed (latest 30)</h3><table><tr><th>Entry (PKT)</th><th>Pair</th><th>Side</th><th>R</th><th>P&amp;L</th></tr>'+S.closed.slice(-30).reverse().map(r=>'<tr><td>'+pk(r.t)+'</td><td>'+r.sym+'</td><td class='+(r.dir>0?'up':'dn')+'>'+(r.dir>0?'BUY':'SELL')+' '+(r.n>=11?'VOL':'S'+r.n+(r.var?'-'+r.var:''))+'</td><td class='+c(r.net-r.feeR)+'>'+(r.net-r.feeR).toFixed(2)+'</td><td class='+c(r.pnl)+'>'+f(r.pnl)+'</td></tr>').join('')+'</table>';
 document.getElementById('o').innerHTML=h}catch(e){document.getElementById('o').textContent='bot not answering'}}
 go();setInterval(go,10000);
 </script>"""
@@ -409,8 +551,16 @@ def main():
         for p in (STATE,):
             if os.path.exists(p): os.remove(p)
         print('Demo account deleted. Start the bot again to begin a new one.'); return
-    conf = dict(DEFAULT); conf.update(load_json(CONF, {}))
-    if not os.path.exists(CONF): save_json(CONF, DEFAULT); print('Wrote', CONF, '- edit it to change pairs, balance, risk ...')
+    conf = json.loads(json.dumps(DEFAULT)); user = {}
+    if os.path.exists(CONF):
+        try:
+            with open(CONF, encoding='utf-8-sig') as f: user = json.load(f)
+        except Exception as e:
+            sys.exit('zaka_bot_config.json is not valid JSON, so the bot stops instead of silently using the defaults: %s\nFix it (a comma or a quote is wrong) and run again.' % e)
+    else: save_json(CONF, DEFAULT); print('Wrote', CONF, '- edit it to change pairs, balance, risk ...')
+    vs = dict(conf['vs']); vs.update(user.pop('vs', {}) or {}); conf.update(user); conf['vs'] = vs
+    if isinstance(conf['strategies'], str): conf['strategies'] = [conf['strategies']]
+    if vs['timeframe'] not in TF: sys.exit('vs.timeframe must be one of ' + ', '.join(TF))
     if conf['timeframe'] not in TF: sys.exit('timeframe must be one of ' + ', '.join(TF))
     bot = Bot(conf)
     if '--once' in sys.argv:

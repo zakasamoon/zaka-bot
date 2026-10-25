@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zaka demo results</title>
+<style>
+:root{--bg:#f3f6f9;--surface:#fff;--text:#18222d;--muted:#667587;--line:#d5dde6;--up:#0f9f80;--dn:#d2394a;--accent:#c98a0a;--shadow:0 1px 2px rgba(0,0,0,.04)}
+@media (prefers-color-scheme:dark){:root{--bg:#0a0e13;--surface:#10161d;--text:#d3dde8;--muted:#7b8b9c;--line:#212c38;--up:#22c3a0;--dn:#ef5a6a;--accent:#f2b134;--shadow:none}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0}h2{font-size:15px;margin:0 0 8px;font-weight:600}
+.sub{color:var(--muted);margin:2px 0 14px}
+.warn{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:10px 12px;margin:0 0 14px;color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile,.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;box-shadow:var(--shadow)}
+.card{margin-top:12px}
+.k{color:var(--muted);font-size:12px}.v{font-size:22px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}.s{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{background:transparent;color:var(--muted);border:0;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--line);color:var(--text)}
+.chartwrap{position:relative}
+svg{display:block;width:100%;height:auto}
+.gl{stroke:var(--line);stroke-width:1}.base{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.7}.ax{fill:var(--muted);font-size:11px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wrap{overflow-x:auto;max-height:460px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+th{color:var(--muted);font-weight:500;text-align:right;padding:5px 6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+td{text-align:right;padding:5px 6px;border-top:1px solid var(--line)}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}
+.err{color:var(--dn)}
+.foot{color:var(--muted);font-size:12px;margin-top:14px}
+.tablebtn{font-size:12px}
+.empty{color:var(--muted);padding:18px 0;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<h1>Zaka demo results</h1>
+<div class="sub" id="sub">Loading...</div>
+<div class="warn">Practice account with fake money. Nothing here is real trading, financial advice or a promise of profit. Results come from rules run on past and live public MEXC prices; fees are included, slippage and real-order problems are not. Past results do not predict the future.</div>
+<div class="grid" id="tiles"></div>
+<div class="card">
+  <div class="head"><h2>Balance after each closed trade</h2>
+    <span class="seg" id="rng"><button data-d="7" aria-pressed="false">7d</button><button data-d="30" aria-pressed="false">30d</button><button data-d="0" aria-pressed="true">All</button></span></div>
+  <div class="chartwrap" id="cw"><svg id="chart" role="img" aria-label="Demo account balance over time"></svg><div class="tip" id="tip"></div></div>
+</div>
+<div class="card"><h2>By strategy</h2><div class="wrap"><table id="bystrat"></table></div></div>
+<div class="card"><h2>By pair</h2><div class="wrap"><table id="bypair"></table></div></div>
+<div class="card"><div class="head"><h2>Open trades</h2></div><div class="wrap"><table id="open"></table></div></div>
+<div class="card"><div class="head"><h2>Closed trades</h2><span class="seg" id="side"><button data-s="all" aria-pressed="true">All</button><button data-s="night" aria-pressed="false">Night</button><button data-s="vol" aria-pressed="false">Volume spike</button></span></div><div class="wrap"><table id="closed"></table></div></div>
+<div class="foot" id="foot"></div>
+</main>
+<script>
+(function(){
+'use strict';
+var SRC=(new URLSearchParams(location.search)).get('src');
+var SOURCES=SRC?[SRC]:['public_state.json','https://raw.githubusercontent.com/zakasamoon/zaka-bot/main/public_state.json'];
+var $=function(s){return document.querySelector(s)};
+var S=null, rangeDays=0, sideF='all';
+function el(tag,txt,cls){var e=document.createElement(tag);if(txt!==undefined)e.textContent=txt;if(cls)e.className=cls;return e}
+function pk(t){var d=new Date((t+18000)*1000),p=function(n){return String(n).padStart(2,'0')};return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())}
+function fm(v,d){return (v>=0?'+':'-')+Math.abs(v).toFixed(d===undefined?2:d)}
+function cl(v){return v>0?'up':v<0?'dn':''}
+function strat(r){return r.n>=11?'Volume spike':'Night profile'}
+function lab(r){return r.n>=11?'VOL':'S'+r.n+(r.var?'-'+r.var:'')}
+function cell(tr,txt,cls){var td=el('td',txt,cls);tr.appendChild(td);return td}
+function table(t,heads,rows,empty){
+  t.textContent='';
+  if(!rows.length){var tr=el('tr');var td=el('td',empty);td.colSpan=heads.length;td.className='empty';td.style.textAlign='center';tr.appendChild(td);t.appendChild(tr);return}
+  var h=el('tr');heads.forEach(function(x){h.appendChild(el('th',x))});t.appendChild(h);
+  rows.forEach(function(r){var tr=el('tr');r.forEach(function(c){cell(tr,c[0],c[1])});t.appendChild(tr)});
+}
+function stats(list){
+  var n=list.length,w=0,gp=0,gl=0,R=0,pnl=0;
+  list.forEach(function(r){var x=r.net-(r.feeR||0);R+=x;pnl+=r.pnl||0;if((r.pnl||0)>0){w++;gp+=r.pnl}else gl+=-(r.pnl||0)});
+  return {n:n,w:w,wr:n?w/n*100:0,R:R,pnl:pnl,pf:gl>0?gp/gl:(gp>0?Infinity:0),avgR:n?R/n:0};
+}
+function tiles(){
+  var b=S.balance,b0=S.bal0,pl=b-b0,st=stats(S.closed),g=$('#tiles');g.textContent='';
+  var T=[['Balance',b.toFixed(2)+' USDT',fm(pl)+' ('+fm(pl/b0*100,1)+'%)',cl(pl)],
+         ['Closed trades',String(st.n),st.w+' won, '+(st.n-st.w)+' lost',''],
+         ['Win rate',st.n?st.wr.toFixed(0)+'%':'-','after fees',''],
+         ['Average per trade',st.n?fm(st.avgR)+' R':'-','profit factor '+(st.pf===Infinity?'-':st.pf.toFixed(2)),st.n?cl(st.avgR):''],
+         ['Max drawdown',S.maxDD.toFixed(1)+'%','closed balance',''],
+         ['Open now',String(S.open.length),'running trades','']];
+  T.forEach(function(x){var d=el('div',undefined,'tile');d.appendChild(el('div',x[0],'k'));var v=el('div',x[1],'v');d.appendChild(v);d.appendChild(el('div',x[2],'s '+x[3]));g.appendChild(d)});
+}
+function series(){
+  var pts=S.equity.slice();
+  if(pts.length&&pts[0][0]===0&&S.closed.length) pts[0]=[Math.max(0,S.closed[0].ct||S.closed[0].t)-3600,pts[0][1]];
+  if(rangeDays>0&&pts.length){var last=pts[pts.length-1][0],lo=last-rangeDays*86400;var before=null;pts=pts.filter(function(p){if(p[0]<lo){before=p;return false}return true});if(before)pts.unshift([lo,before[1]])}
+  return pts;
+}
+function chart(){
+  var svg=$('#chart'),W=Math.max(300,$('#cw').clientWidth),H=Math.round(Math.min(320,Math.max(200,W*0.38)));
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);svg.style.height=H+'px';svg.textContent='';
+  var pts=series(),NS='http://www.w3.org/2000/svg';
+  function mk(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);svg.appendChild(e);return e}
+  if(pts.length<2){var t=mk('text',{x:W/2,y:H/2,'text-anchor':'middle',class:'ax'});t.textContent='No closed trades yet';return}
+  var L=48,R=16,T=10,B=22,t0=pts[0][0],t1=pts[pts.length-1][0],lo=Math.min.apply(null,pts.map(function(p){return p[1]})),hi=Math.max.apply(null,pts.map(function(p){return p[1]}));
+  lo=Math.min(lo,S.bal0);hi=Math.max(hi,S.bal0);if(hi===lo){hi+=1;lo-=1}var pad=(hi-lo)*0.08;lo-=pad;hi+=pad;
+  var X=function(t){return L+(t-t0)/((t1-t0)||1)*(W-L-R)},Y=function(v){return T+(hi-v)/(hi-lo)*(H-T-B)};
+  for(var i=0;i<5;i++){var v=lo+(hi-lo)*i/4;mk('line',{x1:L,x2:W-R,y1:Y(v),y2:Y(v),class:'gl'});var tx=mk('text',{x:L-6,y:Y(v)+4,'text-anchor':'end',class:'ax'});tx.textContent=v.toFixed(v>=1000?0:1)}
+  mk('line',{x1:L,x2:W-R,y1:Y(S.bal0),y2:Y(S.bal0),class:'base'});
+  for(var j=0;j<4;j++){var tt=t0+(t1-t0)*j/3;var lb=mk('text',{x:X(tt),y:H-6,'text-anchor':j===0?'start':j===3?'end':'middle',class:'ax'});lb.textContent=pk(tt).slice(0,5)}
+  mk('polyline',{points:pts.map(function(p){return X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)}).join(' '),fill:'none',stroke:'var(--accent)','stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'});
+  var lp=pts[pts.length-1];mk('circle',{cx:X(lp[0]),cy:Y(lp[1]),r:4,fill:'var(--accent)',stroke:'var(--surface)','stroke-width':2});
+  var cur=mk('line',{x1:0,x2:0,y1:T,y2:H-B,stroke:'var(--muted)','stroke-width':1,visibility:'hidden'}),dot=mk('circle',{r:4,fill:'var(--accent)',stroke:'var(--surface)','stroke-width':2,visibility:'hidden'});
+  var hit=mk('rect',{x:L,y:T,width:W-L-R,height:H-T-B,fill:'transparent'}),tip=$('#tip');
+  function move(ev){var r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)*(W/r.width),best=0,bd=1e18;pts.forEach(function(p,i){var d=Math.abs(X(p[0])-px);if(d<bd){bd=d;best=i}});
+    var p=pts[best],x=X(p[0]),y=Y(p[1]);cur.setAttribute('x1',x);cur.setAttribute('x2',x);cur.setAttribute('visibility','visible');dot.setAttribute('cx',x);dot.setAttribute('cy',y);dot.setAttribute('visibility','visible');
+    tip.textContent=pk(p[0])+' PKT   '+p[1].toFixed(2)+' USDT';tip.style.display='block';var tw=tip.offsetWidth;tip.style.left=Math.min(Math.max(0,x/W*r.width-tw/2),r.width-tw)+'px';tip.style.top=(y/H*r.height-34)+'px'}
+  hit.addEventListener('mousemove',move);hit.addEventListener('touchmove',function(e){move(e.touches[0])},{passive:true});
+  hit.addEventListener('mouseleave',function(){cur.setAttribute('visibility','hidden');dot.setAttribute('visibility','hidden');tip.style.display='none'});
+}
+function groups(){
+  var by={};S.closed.forEach(function(r){var k=strat(r);(by[k]=by[k]||[]).push(r)});
+  var rows=Object.keys(by).sort().map(function(k){var s=stats(by[k]);return [[k],[String(s.n)],[s.wr.toFixed(0)+'%'],[fm(s.avgR)+' R',cl(s.avgR)],[fm(s.R)+' R',cl(s.R)],[fm(s.pnl)+' USDT',cl(s.pnl)]]});
+  table($('#bystrat'),['Strategy','Trades','Win rate','Avg R','Total R','P&L'],rows,'No closed trades yet');
+  var bp={};S.closed.forEach(function(r){(bp[r.sym]=bp[r.sym]||[]).push(r)});
+  var rp=Object.keys(bp).sort().map(function(k){var s=stats(bp[k]);return [[k],[String(s.n)],[s.wr.toFixed(0)+'%'],[fm(s.avgR)+' R',cl(s.avgR)],[fm(s.R)+' R',cl(s.R)],[fm(s.pnl)+' USDT',cl(s.pnl)]]});
+  table($('#bypair'),['Pair','Trades','Win rate','Avg R','Total R','P&L'],rp,'No closed trades yet');
+}
+function lists(){
+  table($('#open'),['Entry (PKT)','Pair','Side','Entry price','Stop','Targets hit'],S.open.slice().sort(function(a,b){return b.t-a.t}).map(function(r){return [[pk(r.t)],[r.sym],[(r.dir>0?'BUY ':'SELL ')+lab(r),r.dir>0?'up':'dn'],[String(r.entry)],[String(+Number(r.sl).toPrecision(7))],[String(r.hits||0)]]}),'No trade is running');
+  var L=S.closed.filter(function(r){return sideF==='all'||(sideF==='vol')===(r.n>=11)}).slice().sort(function(a,b){return (b.ct||b.t)-(a.ct||a.t)}).slice(0,200);
+  table($('#closed'),['Entry (PKT)','Pair','Side','R after fee','P&L','Balance','Result'],L.map(function(r){var x=r.net-(r.feeR||0);return [[pk(r.t)],[r.sym],[(r.dir>0?'BUY ':'SELL ')+lab(r),r.dir>0?'up':'dn'],[fm(x),cl(x)],[fm(r.pnl||0),cl(r.pnl||0)],[(r.bal!==undefined?r.bal.toFixed(2):'')],[r.res==='win'?'target':r.res==='partial'?'TP'+r.hits+' then stop':'stopped']]}),'No closed trades yet');
+}
+function render(){
+  var s=S;$('#sub').textContent='Pairs: '+s.symbols.join(', ')+' | Night timeframe '+s.timeframe+(s.strategies?' | strategies: '+s.strategies.join(', '):'')+' | start balance '+s.bal0+' USDT | last check '+pk(s.lastPoll)+' PKT';
+  tiles();chart();groups();lists();
+  var errs=s.errors&&Object.keys(s.errors).length?Object.keys(s.errors).map(function(k){return k+': '+s.errors[k]}).join('; '):'';
+  var f=$('#foot');f.textContent='Each trade risks '+s.risk+'% of the current balance; fee '+s.fee+'% per side. The balance counts finished trades only.';
+  if(errs){var e=el('div','Data problem at the last check: '+errs,'err');f.appendChild(e)}
+}
+function load(i){
+  if(i>=SOURCES.length){$('#sub').textContent='Could not load the results file. Check that public_state.json exists in the repository.';return}
+  fetch(SOURCES[i]+(SOURCES[i].indexOf('?')<0?'?t='+Date.now():''),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()}).then(function(j){
+    j.closed=j.closed||[];j.open=j.open||[];j.equity=j.equity||[];j.symbols=j.symbols||[];
+    var bal=j.bal0;j.closed.slice().sort(function(a,b){return (a.ct||a.t)-(b.ct||b.t)}).forEach(function(r){bal+=r.pnl||0;r.bal=bal});
+    S=j;render();
+  }).catch(function(){load(i+1)});
+}
+document.querySelectorAll('#rng button').forEach(function(b){b.onclick=function(){rangeDays=+b.dataset.d;document.querySelectorAll('#rng button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});if(S)chart()}});
+document.querySelectorAll('#side button').forEach(function(b){b.onclick=function(){sideF=b.dataset.s;document.querySelectorAll('#side button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});if(S)lists()}});
+var rz;window.addEventListener('resize',function(){clearTimeout(rz);rz=setTimeout(function(){if(S)chart()},120)});
+load(0);setInterval(function(){load(0)},120000);
+})();
+</script>
+</body>
+</html>
