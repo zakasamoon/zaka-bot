@@ -48,6 +48,7 @@ IV = {'1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m', '1h': '60m', '4h': '4h
 LAD = [4, 6, 8, 12, 16, 20, 28, 40, 55]
 LADW = [0.4] + [0.075] * 8                          # share of the position closed at each target: 40% at the first, the rest equally
 API = 'https://api.mexc.com'
+RULES = '2026-10-25.3'      # change this text whenever a trading rule changes: the bot then erases the old demo account and starts a fresh one under the new rules
 
 # ---------------------------------------------------------------- the Night algo (night range mode), a port of the ZakaDesk engine
 def pkt_day(t):
@@ -404,15 +405,18 @@ def calc(D):
         r['feeR'] = fee_r; r['pnl'] = (r['net'] - fee_r) * r['amt']; bal += r['pnl']
         if r['pnl'] > 0: wins += 1
         peak = max(peak, bal); dd = max(dd, (peak - bal) / peak * 100); eq.append([t, bal]); closed.append(r)
-    return {'bal0': D['bal0'], 'balance': bal, 'wins': wins, 'maxDD': dd, 'equity': eq, 'closed': closed, 'open': opened,
+    return {'rules': D.get('rules'), 'bal0': D['bal0'], 'balance': bal, 'wins': wins, 'maxDD': dd, 'equity': eq, 'closed': closed, 'open': opened,
             'risk': D['risk'], 'fee': D['fee'], 'start': D['start']}
 
 class Bot:
     def __init__(self, conf):
         self.c = conf; self.lock = threading.Lock(); self.profiles = {}; self.status = 'starting'; self.last_poll = 0; self.vs_cache = {}
         self.D = load_json(STATE, None)
+        if self.D and self.D.get('rules') != RULES:
+            print('Trading rules changed (%s -> %s): the old demo account and all its old trades are erased.' % (self.D.get('rules', 'none'), RULES), flush=True)
+            self.D = None
         if not self.D:
-            self.D = {'bal0': conf['balance'], 'risk': conf['risk_percent'], 'fee': conf['fee_percent'],
+            self.D = {'bal0': conf['balance'], 'risk': conf['risk_percent'], 'fee': conf['fee_percent'], 'rules': RULES,
                       'start': 0 if conf['start_from'] == 'history' else int(time.time()), 'led': {}}
             save_json(STATE, self.D)
         self.D['risk'] = conf['risk_percent']; self.D['fee'] = conf['fee_percent']
@@ -526,7 +530,7 @@ class Bot:
     def snapshot(self):
         with self.lock:
             S = calc(json.loads(json.dumps(self.D)))
-        S['symbols'] = self.c['symbols']; S['strategies'] = self.c['strategies']; S['timeframe'] = self.c['timeframe']; S['lastPoll'] = self.last_poll or time.time()
+        S['symbols'] = self.c['symbols']; S['strategies'] = self.c['strategies']; S['rules'] = RULES; S['timeframe'] = self.c['timeframe']; S['lastPoll'] = self.last_poll or time.time()
         return S
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Zaka demo bot</title>
@@ -537,7 +541,7 @@ PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=
 const f=v=>(v>=0?'+':'-')+Math.abs(v).toFixed(2), c=v=>v>0?'up':v<0?'dn':'';
 function pk(t){const d=new Date((t+18000)*1000),p=n=>String(n).padStart(2,'0');return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())}
 async function go(){try{const S=await (await fetch('/state')).json(),pl=S.balance-S.bal0;
-let h='<div class=big><span class='+c(pl)+'>'+S.balance.toFixed(2)+' USDT</span></div><div>'+f(pl)+' USDT from '+S.bal0+' | '+S.closed.length+' closed, '+S.wins+' won | max drawdown '+S.maxDD.toFixed(1)+'% | open '+S.open.length+'</div><div>Pairs: '+S.symbols.join(', ')+' ('+S.timeframe+'). Last check '+new Date(S.lastPoll*1000).toLocaleTimeString()+'</div>';
+let h='<div class=big><span class='+c(pl)+'>'+S.balance.toFixed(2)+' USDT</span></div><div>'+f(pl)+' USDT from '+S.bal0+' | '+S.closed.length+' closed, '+S.wins+' won | max drawdown '+S.maxDD.toFixed(1)+'% | open '+S.open.length+'</div><div>Pairs: '+S.symbols.join(', ')+' ('+S.timeframe+'). Rules version '+S.rules+'. Last check '+new Date(S.lastPoll*1000).toLocaleTimeString()+'</div>';
 if(S.open.length)h+='<h3>Open</h3><table><tr><th>Entry (PKT)</th><th>Pair</th><th>Side</th><th>Targets hit</th></tr>'+S.open.map(r=>'<tr><td>'+pk(r.t)+'</td><td>'+r.sym+'</td><td class='+(r.dir>0?'up':'dn')+'>'+(r.dir>0?'BUY':'SELL')+' '+(r.n>=11?'VOL':'S'+r.n+(r.var?'-'+r.var:''))+'</td><td>'+r.hits+'</td></tr>').join('')+'</table>';
 h+='<h3>Closed (latest 30)</h3><table><tr><th>Entry (PKT)</th><th>Pair</th><th>Side</th><th>R</th><th>P&amp;L</th></tr>'+S.closed.slice(-30).reverse().map(r=>'<tr><td>'+pk(r.t)+'</td><td>'+r.sym+'</td><td class='+(r.dir>0?'up':'dn')+'>'+(r.dir>0?'BUY':'SELL')+' '+(r.n>=11?'VOL':'S'+r.n+(r.var?'-'+r.var:''))+'</td><td class='+c(r.net-r.feeR)+'>'+(r.net-r.feeR).toFixed(2)+'</td><td class='+c(r.pnl)+'>'+f(r.pnl)+'</td></tr>').join('')+'</table>';
 document.getElementById('o').innerHTML=h}catch(e){document.getElementById('o').textContent='bot not answering'}}
