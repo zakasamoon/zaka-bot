@@ -131,7 +131,7 @@ function lists(){
   table($('#closed'),['Entry (PKT)','Pair','Side','R after fee','P&L','Balance','Result'],L.map(function(r){var x=r.net-(r.feeR||0);return [[pk(r.t)],[r.sym],[(r.dir>0?'BUY ':'SELL ')+lab(r),r.dir>0?'up':'dn'],[fm(x),cl(x)],[fm(r.pnl||0),cl(r.pnl||0)],[(r.bal!==undefined?r.bal.toFixed(2):'')],[r.res==='win'?'target':r.res==='partial'?'TP'+r.hits+' then stop':'stopped']]}),'No closed trades yet');
 }
 function render(){
-  var s=S;$('#sub').textContent='Pairs: '+s.symbols.join(', ')+' | Night timeframe '+s.timeframe+(s.strategies?' | strategies: '+s.strategies.join(', '):'')+' | start balance '+s.bal0+' USDT | last check '+pk(s.lastPoll)+' PKT';
+  var s=S;$('#sub').textContent='Pairs: '+s.symbols.join(', ')+' | Night timeframe '+s.timeframe+(s.strategies?' | strategies: '+s.strategies.join(', '):'')+' | start balance '+s.bal0+' USDT | rules version '+(s.rules||'old')+' | last check '+pk(s.lastPoll)+' PKT';
   tiles();chart();groups();lists();
   var errs=s.errors&&Object.keys(s.errors).length?Object.keys(s.errors).map(function(k){return k+': '+s.errors[k]}).join('; '):'';
   var f=$('#foot');f.textContent='Each trade risks '+s.risk+'% of the current balance; fee '+s.fee+'% per side. The balance counts finished trades only.';
