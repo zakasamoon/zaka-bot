@@ -232,11 +232,12 @@
    "entry": 1355.65,
    "sl": 1316.9,
    "risk": 38.75,
-   "res": "open",
+   "res": "loss",
    "hits": 0,
-   "net": null,
-   "ct": null,
-   "var": "C"
+   "net": -1.0,
+   "ct": 1793298600,
+   "var": "C",
+   "amt": null
   }
  }
 }
