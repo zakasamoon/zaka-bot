@@ -311,11 +311,12 @@
    "entry": 1232.18,
    "sl": 1222.11,
    "risk": 10.070000000000164,
-   "res": "open",
+   "res": "loss",
    "hits": 0,
-   "net": null,
-   "ct": null,
-   "var": ""
+   "net": -1.0,
+   "ct": 1793392200,
+   "var": "",
+   "amt": null
   }
  }
 }
