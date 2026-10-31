@@ -406,11 +406,12 @@
    "entry": 1278.46,
    "sl": 1272.63,
    "risk": 5.829999999999927,
-   "res": "open",
+   "res": "loss",
    "hits": 0,
-   "net": null,
-   "ct": null,
-   "var": ""
+   "net": -1.0,
+   "ct": 1793475900,
+   "var": "",
+   "amt": null
   }
  }
 }
