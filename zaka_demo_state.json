@@ -517,10 +517,11 @@
    "sl": 1245.18,
    "risk": 3.2799999999999727,
    "res": "open",
-   "hits": 0,
+   "hits": 1,
    "net": null,
    "ct": null,
-   "var": ""
+   "var": "",
+   "amt": null
   }
  }
 }
