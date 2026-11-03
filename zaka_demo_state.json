@@ -548,11 +548,12 @@
    "entry": 1178.12,
    "sl": 1215.01,
    "risk": 36.8900000000001,
-   "res": "open",
+   "res": "loss",
    "hits": 0,
-   "net": null,
-   "ct": null,
-   "var": ""
+   "net": -1.0,
+   "ct": 1793712600,
+   "var": "",
+   "amt": null
   },
   "ZECUSDT|1793678700|8": {
    "key": "ZECUSDT|1793678700|8",
