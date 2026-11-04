@@ -627,10 +627,10 @@
    "entry": 1173.46,
    "sl": 1161.87,
    "risk": 11.590000000000146,
-   "res": "open",
+   "res": "partial",
    "hits": 2,
-   "net": null,
-   "ct": null,
+   "net": 2.05,
+   "ct": 1793761200,
    "var": "C",
    "amt": null
   }
