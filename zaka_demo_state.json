@@ -737,10 +737,11 @@
    "sl": 1327.59,
    "risk": 5.959999999999809,
    "res": "open",
-   "hits": 0,
+   "hits": 1,
    "net": null,
    "ct": null,
-   "var": ""
+   "var": "",
+   "amt": null
   },
   "ZECUSDT|1793877900|7": {
    "key": "ZECUSDT|1793877900|7",
