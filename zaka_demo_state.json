@@ -801,10 +801,11 @@
    "sl": 1287.34,
    "risk": 17.50999999999999,
    "res": "open",
-   "hits": 0,
+   "hits": 1,
    "net": null,
    "ct": null,
-   "var": "R"
+   "var": "R",
+   "amt": null
   }
  }
 }
