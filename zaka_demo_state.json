@@ -800,10 +800,10 @@
    "entry": 1304.85,
    "sl": 1287.34,
    "risk": 17.50999999999999,
-   "res": "open",
+   "res": "partial",
    "hits": 1,
-   "net": null,
-   "ct": null,
+   "net": 1.6,
+   "ct": 1794032700,
    "var": "R",
    "amt": null
   },
