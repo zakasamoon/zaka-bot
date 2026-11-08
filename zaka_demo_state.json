@@ -848,10 +848,11 @@
    "sl": 1318.64,
    "risk": 29.54000000000019,
    "res": "open",
-   "hits": 0,
+   "hits": 1,
    "net": null,
    "ct": null,
-   "var": "C"
+   "var": "C",
+   "amt": null
   },
   "ZECUSDT|1794157200|4": {
    "key": "ZECUSDT|1794157200|4",
