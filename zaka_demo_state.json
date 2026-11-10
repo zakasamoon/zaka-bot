@@ -912,10 +912,11 @@
    "sl": 1192.8,
    "risk": 15.319999999999936,
    "res": "open",
-   "hits": 2,
+   "hits": 3,
    "net": null,
    "ct": null,
-   "var": ""
+   "var": "",
+   "amt": null
   }
  }
 }
