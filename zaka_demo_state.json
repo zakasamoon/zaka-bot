@@ -911,10 +911,10 @@
    "entry": 1177.48,
    "sl": 1192.8,
    "risk": 15.319999999999936,
-   "res": "open",
+   "res": "partial",
    "hits": 4,
-   "net": null,
-   "ct": null,
+   "net": 5.05,
+   "ct": 1794413100,
    "var": "",
    "amt": null
   },
