@@ -912,7 +912,7 @@
    "sl": 1192.8,
    "risk": 15.319999999999936,
    "res": "open",
-   "hits": 3,
+   "hits": 4,
    "net": null,
    "ct": null,
    "var": "",
@@ -1003,10 +1003,11 @@
    "sl": 1023.42,
    "risk": 6.969999999999914,
    "res": "open",
-   "hits": 0,
+   "hits": 2,
    "net": null,
    "ct": null,
-   "var": ""
+   "var": "",
+   "amt": null
   }
  }
 }
