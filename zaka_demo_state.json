@@ -1144,10 +1144,11 @@
    "sl": 916.89,
    "risk": 5.669999999999959,
    "res": "open",
-   "hits": 0,
+   "hits": 2,
    "net": null,
    "ct": null,
-   "var": ""
+   "var": "",
+   "amt": null
   }
  }
 }
