@@ -1607,7 +1607,7 @@
    "sl": 916.89,
    "risk": 5.669999999999959,
    "res": "open",
-   "hits": 2,
+   "hits": 3,
    "net": null,
    "ct": null,
    "var": "",
@@ -1625,6 +1625,6 @@
   "volspike"
  ],
  "timeframe": "5m",
- "lastPoll": 1794668716.8396888,
+ "lastPoll": 1794670730.090464,
  "errors": {}
 }
