@@ -1175,11 +1175,12 @@
    "entry": 882.99,
    "sl": 858.1,
    "risk": 24.889999999999986,
-   "res": "open",
+   "res": "loss",
    "hits": 0,
-   "net": null,
-   "ct": null,
-   "var": ""
+   "net": -1.0,
+   "ct": 1794833100,
+   "var": "",
+   "amt": null
   },
   "ZECUSDT|1794815700|8": {
    "key": "ZECUSDT|1794815700|8",
@@ -1206,10 +1207,11 @@
    "sl": 899.75,
    "risk": 6.5499999999999545,
    "res": "open",
-   "hits": 0,
+   "hits": 2,
    "net": null,
    "ct": null,
-   "var": "C"
+   "var": "C",
+   "amt": null
   }
  }
 }
