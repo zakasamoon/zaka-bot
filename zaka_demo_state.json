@@ -1275,6 +1275,21 @@
    "ct": 1794930600,
    "var": "C",
    "amt": null
+  },
+  "ZECUSDT|1795019100|8": {
+   "key": "ZECUSDT|1795019100|8",
+   "sym": "ZECUSDT",
+   "dir": 1,
+   "n": 8,
+   "t": 1795019100,
+   "entry": 924.02,
+   "sl": 913.77,
+   "risk": 10.25,
+   "res": "open",
+   "hits": 0,
+   "net": null,
+   "ct": null,
+   "var": ""
   }
  }
 }
