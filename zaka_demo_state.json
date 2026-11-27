@@ -1640,12 +1640,27 @@
    "entry": 747.12,
    "sl": 752.33,
    "risk": 5.210000000000036,
-   "res": "open",
+   "res": "partial",
    "hits": 5,
-   "net": null,
-   "ct": null,
+   "net": 5.95,
+   "ct": 1795745100,
    "var": "",
    "amt": null
+  },
+  "ZECUSDT|1795746000|3": {
+   "key": "ZECUSDT|1795746000|3",
+   "sym": "ZECUSDT",
+   "dir": 1,
+   "n": 3,
+   "t": 1795746000,
+   "entry": 739.4,
+   "sl": 720.46,
+   "risk": 18.93999999999994,
+   "res": "open",
+   "hits": 0,
+   "net": null,
+   "ct": null,
+   "var": ""
   }
  }
 }
